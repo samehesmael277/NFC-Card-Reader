@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">NFC</string>
+
+    <string name="nfc_service_description">NFC Data Exchange Service</string>
+    <string name="nfc_aid_description">NFC Data Exchange</string>
+</resources>
