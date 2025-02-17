@@ -6,44 +6,45 @@ import android.util.Log
 
 class HostCardEmulatorService : HostApduService() {
 
-    override fun processCommandApdu(p0: ByteArray?, p1: Bundle?): ByteArray {
-        if (p0 == null) {
-            return Utils.hexStringToByteArray(STATUS_FAILED)
-        }
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "HostCardEmulatorService Started")
+    }
 
-        val hexCommandApdu = Utils.toHex(p0)
-        if (hexCommandApdu.length < MIN_APDU_LENGTH) {
-            return Utils.hexStringToByteArray(STATUS_FAILED)
-        }
+    override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
+        if (commandApdu == null) return Utils.hexStringToByteArray(STATUS_FAILED)
 
-        if (hexCommandApdu.substring(0, 2) != DEFAULT_CLA) {
-            return Utils.hexStringToByteArray(CLA_NOT_SUPPORTED)
-        }
+        val hexCommandApdu = Utils.toHex(commandApdu)
+        Log.d(TAG, "Received APDU Command: $hexCommandApdu")
 
-        if (hexCommandApdu.substring(2, 4) != SELECT_INS) {
+        if (hexCommandApdu.length < 12) return Utils.hexStringToByteArray(STATUS_FAILED)
+
+        if (hexCommandApdu.substring(0, 2) != "00" || hexCommandApdu.substring(2, 4) != "A4") {
+            Log.d(TAG, "Invalid Command: Not an AID selection request")
             return Utils.hexStringToByteArray(INS_NOT_SUPPORTED)
         }
 
-        if (hexCommandApdu.substring(10, 24) == AID)  {
-            return Utils.hexStringToByteArray(STATUS_SUCCESS)
-        } else {
-            return Utils.hexStringToByteArray(STATUS_FAILED)
+        if (hexCommandApdu.substring(10, 24) == AID) {
+            val (userId, phone) = NfcDataHandler.getNfcData()
+            val responseData = Utils.stringToHex("$userId|$phone") + STATUS_SUCCESS
+            Log.d(TAG, "Sending Data: $userId | $phone")
+            return Utils.hexStringToByteArray(responseData)
         }
+
+        Log.d(TAG, "AID Not Matched")
+        return Utils.hexStringToByteArray(STATUS_FAILED)
+
     }
 
-    override fun onDeactivated(p0: Int) {
-        Log.d(TAG, "Deactivated: $p0")
+    override fun onDeactivated(reason: Int) {
+        Log.d(TAG, "NFC Deactivated: $reason")
     }
 
     companion object {
-        val TAG = "Host Card Emulator"
-        val STATUS_SUCCESS = "9000"
-        val STATUS_FAILED = "6F00"
-        val CLA_NOT_SUPPORTED = "6E00"
-        val INS_NOT_SUPPORTED = "6D00"
-        val AID = "A0000002471001"
-        val SELECT_INS = "A4"
-        val DEFAULT_CLA = "00"
-        val MIN_APDU_LENGTH = 12
+        private const val TAG = "HostCardEmulator"
+        private const val STATUS_SUCCESS = "9000"
+        private const val STATUS_FAILED = "6F00"
+        private const val INS_NOT_SUPPORTED = "6D00"
+        private const val AID = "A0000002471001"
     }
 }

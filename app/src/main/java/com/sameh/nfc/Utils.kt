@@ -1,36 +1,25 @@
 package com.sameh.nfc
 
-class Utils {
-    companion object {
-        private val HEX_CHARS = "0123456789ABCDEF"
-        fun hexStringToByteArray(data: String) : ByteArray {
+object Utils {
+    fun stringToHex(input: String): String {
+        return input.toByteArray().joinToString("") { "%02x".format(it) }.uppercase()
+    }
 
-            val result = ByteArray(data.length / 2)
+    fun hexToString(hex: String): String {
+        val bytes = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        return String(bytes, Charsets.UTF_8)
+    }
 
-            for (i in 0 until data.length step 2) {
-                val firstIndex = HEX_CHARS.indexOf(data[i]);
-                val secondIndex = HEX_CHARS.indexOf(data[i + 1]);
-
-                val octet = firstIndex.shl(4).or(secondIndex)
-                result.set(i.shr(1), octet.toByte())
-            }
-
-            return result
+    fun hexStringToByteArray(s: String): ByteArray {
+        val len = s.length
+        val data = ByteArray(len / 2)
+        for (i in 0 until len step 2) {
+            data[i / 2] = ((s[i].digitToInt(16) shl 4) + s[i + 1].digitToInt(16)).toByte()
         }
+        return data
+    }
 
-        private val HEX_CHARS_ARRAY = "0123456789ABCDEF".toCharArray()
-        fun toHex(byteArray: ByteArray) : String {
-            val result = StringBuffer()
-
-            byteArray.forEach {
-                val octet = it.toInt()
-                val firstIndex = (octet and 0xF0).ushr(4)
-                val secondIndex = octet and 0x0F
-                result.append(HEX_CHARS_ARRAY[firstIndex])
-                result.append(HEX_CHARS_ARRAY[secondIndex])
-            }
-
-            return result.toString()
-        }
+    fun toHex(bytes: ByteArray): String {
+        return bytes.joinToString("") { "%02x".format(it) }.uppercase()
     }
 }
