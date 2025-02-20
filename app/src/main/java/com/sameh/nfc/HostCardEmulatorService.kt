@@ -4,6 +4,7 @@ import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
 
+/*
 class HostCardEmulatorService : HostApduService() {
 
     override fun onCreate() {
@@ -48,3 +49,4 @@ class HostCardEmulatorService : HostApduService() {
         private const val AID = "A0000002471001"
     }
 }
+ */

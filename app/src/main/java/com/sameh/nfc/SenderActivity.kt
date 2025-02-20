@@ -2,12 +2,14 @@ package com.sameh.nfc
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.IntentFilter
 import android.nfc.NdefMessage
 import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.Ndef
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -63,23 +65,41 @@ class SenderActivity : ComponentActivity() {
             this, 0, intent, PendingIntent.FLAG_MUTABLE
         )
 
-        nfcAdapter.enableForegroundDispatch(this, pendingIntent, null, null)
+        // Create intent filters for the actions you want to handle
+        val tagDetected = IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)
+        val filters = arrayOf(tagDetected)
+
+        // Define tech lists if needed (optional)
+        val techLists = arrayOf(arrayOf(Ndef::class.java.name))
+
+        nfcAdapter.enableForegroundDispatch(this, pendingIntent, filters, techLists)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
 
+        Log.d("NFC_TAG", "New intent received: ${intent.action}")
+
         if (NfcAdapter.ACTION_TAG_DISCOVERED == intent.action ||
             NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action ||
             NfcAdapter.ACTION_TECH_DISCOVERED == intent.action
         ) {
-
             val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
-            tag?.let {
-                val ndef = Ndef.get(it)
-                ndef?.let { ndefTag ->
-                    sendNdefMessage(ndefTag, messageToSend)
+            if (tag != null) {
+                try {
+                    val ndef = Ndef.get(tag)
+                    if (ndef != null) {
+                        sendNdefMessage(ndef, messageToSend)
+                    } else {
+                        Log.e("NFC_TAG", "Tag doesn't support NDEF")
+                        Toast.makeText(this, "This tag doesn't support NDEF format", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e("NFC_TAG", "Error handling tag: ${e.message}")
+                    Toast.makeText(this, "Error handling tag: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
+            } else {
+                Log.e("NFC_TAG", "No tag in intent")
             }
         }
     }

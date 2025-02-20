@@ -63,5 +63,5 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     // nfc lib
-    implementation(libs.nfclib.android)
+    // implementation(libs.nfclib.android)
 }

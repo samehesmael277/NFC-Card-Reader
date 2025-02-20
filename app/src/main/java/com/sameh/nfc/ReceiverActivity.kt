@@ -7,6 +7,7 @@ import android.nfc.NdefMessage
 import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -86,6 +87,7 @@ class ReceiverActivity : ComponentActivity() {
     }
 
     private fun processIntent(intent: Intent) {
+        Log.d("TAGTAGTAG", "processIntent: $intent")
         if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
             intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)?.let { rawMessages ->
                 val messages = rawMessages.map { it as NdefMessage }
