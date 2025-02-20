@@ -1,104 +1,122 @@
 package com.sameh.nfc
 
-import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.nfc.NdefMessage
-import android.nfc.NdefRecord
+import android.content.pm.PackageManager
 import android.nfc.NfcAdapter
-import android.nfc.tech.Ndef
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var nfcAdapter: NfcAdapter
-    private var nfcData by mutableStateOf("Sample NFC Data")
+    private var isNfcAvailable = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            // UI for Sending Data
-            SendNfcScreen()
-        }
 
+        // Initialize NFC adapter
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        isNfcAvailable = nfcAdapter != null
 
-        if (nfcAdapter == null) {
-            // NFC غير مدعوم
-            return
+        val intent = Intent(this, HostCardEmulatorService::class.java)
+        startService(intent)
+
+        val isHceAvailable = isHCESupported(this)
+
+        // عرض نتيجة التحقق للمستخدم
+        if (!isHceAvailable) {
+            Toast.makeText(this, "جهازك لا يدعم HCE", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, "جهازك يدعم HCE", Toast.LENGTH_LONG).show()
         }
-    }
 
-    override fun onResume() {
-        super.onResume()
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent =
-            PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
-        val filters = arrayOf(IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED))
-
-        nfcAdapter.enableForegroundDispatch(this, pendingIntent, filters, null)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        nfcAdapter.disableForegroundDispatch(this)
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        val tag: android.nfc.Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
-        tag?.let {
-            // عندما يتم اكتشاف الـ Tag من الجهاز الآخر، يمكن إرسال البيانات
-            sendNfcData(it, nfcData)
-        }
-    }
-
-    // هذه الفنكشن لارسال البيانات عبر NFC
-    private fun sendNfcData(tag: android.nfc.Tag, data: String) {
-        try {
-            val ndef = Ndef.get(tag)
-            ndef.connect()
-            val ndefMessage = NdefMessage(
-                NdefRecord.createTextRecord("en", data)
+        setContent {
+            SenderScreen(
+                isNfcAvailable = isNfcAvailable
             )
-            ndef.writeNdefMessage(ndefMessage)
-            ndef.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
+    }
+
+    private fun isHCESupported(context: Context): Boolean {
+        val packageManager = context.packageManager
+
+        // التحقق من وجود NFC أولاً
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_NFC)) {
+            return false
+        }
+
+        // التحقق من وجود خدمة HCE
+        return packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)
     }
 
     @Composable
-    fun SendNfcScreen() {
+    fun SenderScreen(
+        isNfcAvailable: Boolean
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text("Send Data via NFC")
-            Spacer(modifier = Modifier.height(20.dp))
-            Button(onClick = {
-                // عند الضغط على الزر سيتم إرسال البيانات عبر NFC
-                nfcData = "New Data to send" // مثال لتغيير البيانات
-                // هذه العملية يتم تنفيذها عندما يتفاعل الجهاز مع NFC
-            }) {
-                Text("Send Data")
+            if (!isNfcAvailable) {
+                Text(
+                    text = "NFC is not available on this device",
+                    color = Color.Red,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Text(
+                    text = "NFC Host Card Emulation Mode",
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Host Card Emulation Active",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.Green
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Your device is acting as a contactless smart card. Bring another NFC reader close to transfer the message.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
             }
         }
     }
+
 }

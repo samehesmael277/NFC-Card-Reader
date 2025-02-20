@@ -4,49 +4,71 @@ import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
 
-/*
 class HostCardEmulatorService : HostApduService() {
 
-    override fun onCreate() {
-        super.onCreate()
-        Log.d(TAG, "HostCardEmulatorService Started")
+    companion object {
+        val TAG = "Host Card Emulator"
+        val STATUS_SUCCESS = "9000"
+        val STATUS_FAILED = "6F00"
+        val AID = "A0000002471001"
+        val SELECT_INS = "A4"
+        val DEFAULT_CLA = "00"
+        val MIN_APDU_LENGTH = 12
+
+        // رسالة لإرسالها عند الطلب
+        val MESSAGE_TO_SEND = "Hello NFC World!"
+    }
+
+    override fun onDeactivated(reason: Int) {
+        Log.d(TAG, "Deactivated: $reason")
     }
 
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
         if (commandApdu == null) return Utils.hexStringToByteArray(STATUS_FAILED)
 
         val hexCommandApdu = Utils.toHex(commandApdu)
-        Log.d(TAG, "Received APDU Command: $hexCommandApdu")
+        Log.d(TAG, "Received APDU: $hexCommandApdu")
 
-        if (hexCommandApdu.length < 12) return Utils.hexStringToByteArray(STATUS_FAILED)
+        // التعامل مع أمر SELECT
+        if (hexCommandApdu.length >= 10 && hexCommandApdu.substring(0, 2) == DEFAULT_CLA &&
+            hexCommandApdu.substring(2, 4) == SELECT_INS) {
 
-        if (hexCommandApdu.substring(0, 2) != "00" || hexCommandApdu.substring(2, 4) != "A4") {
-            Log.d(TAG, "Invalid Command: Not an AID selection request")
-            return Utils.hexStringToByteArray(INS_NOT_SUPPORTED)
+            if (hexCommandApdu.length < MIN_APDU_LENGTH) {
+                return Utils.hexStringToByteArray(STATUS_FAILED)
+            }
+
+            // استخراج AID من الأمر
+            val lengthIndex = 8
+            if (hexCommandApdu.length < lengthIndex + 2) {
+                return Utils.hexStringToByteArray(STATUS_FAILED)
+            }
+
+            val aidLength = hexCommandApdu.substring(lengthIndex, lengthIndex + 2).toInt(16)
+
+            if (hexCommandApdu.length < lengthIndex + 2 + (aidLength * 2)) {
+                return Utils.hexStringToByteArray(STATUS_FAILED)
+            }
+
+            val receivedAID = hexCommandApdu.substring(lengthIndex + 2, lengthIndex + 2 + (aidLength * 2))
+            Log.d(TAG, "Extracted AID: $receivedAID, Expected AID: $AID")
+
+            return if (receivedAID == AID) {
+                Log.d(TAG, "AID Matched! Sending success response.")
+                Utils.hexStringToByteArray(STATUS_SUCCESS)
+            } else {
+                Log.d(TAG, "AID Mismatch! Sending 6A82.")
+                Utils.hexStringToByteArray("6A82")
+            }
         }
 
-        if (hexCommandApdu.substring(10, 24) == AID) {
-            val (userId, phone) = NfcDataHandler.getNfcData()
-            val responseData = Utils.stringToHex("$userId|$phone") + STATUS_SUCCESS
-            Log.d(TAG, "Sending Data: $userId | $phone")
-            return Utils.hexStringToByteArray(responseData)
+        // التعامل مع أمر القراءة 00B0000000
+        if (hexCommandApdu == "00B0000000") {
+            Log.d(TAG, "Received READ command")
+            val messageInHex = Utils.stringToHex(MESSAGE_TO_SEND)
+            return Utils.hexStringToByteArray(messageInHex + STATUS_SUCCESS)
         }
 
-        Log.d(TAG, "AID Not Matched")
+        Log.d(TAG, "Command not recognized: $hexCommandApdu")
         return Utils.hexStringToByteArray(STATUS_FAILED)
-
-    }
-
-    override fun onDeactivated(reason: Int) {
-        Log.d(TAG, "NFC Deactivated: $reason")
-    }
-
-    companion object {
-        private const val TAG = "HostCardEmulator"
-        private const val STATUS_SUCCESS = "9000"
-        private const val STATUS_FAILED = "6F00"
-        private const val INS_NOT_SUPPORTED = "6D00"
-        private const val AID = "A0000002471001"
     }
 }
- */
