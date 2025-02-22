@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -17,29 +18,39 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var viewModel: NfcViewModel
     private lateinit var nfcAdapter: NfcAdapter
     private var isNfcAvailable = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        viewModel = ViewModelProvider(
+            this,
+            ViewModelProvider.AndroidViewModelFactory(application)
+        )[NfcViewModel::class.java]
+
+        startService(Intent(this, HostCardEmulatorService::class.java))
+
         // Initialize NFC adapter
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         isNfcAvailable = nfcAdapter != null
-
-        val intent = Intent(this, HostCardEmulatorService::class.java)
-        startService(intent)
 
         val isHceAvailable = isHCESupported(this)
 
@@ -51,9 +62,32 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            SenderScreen(
-                isNfcAvailable = isNfcAvailable
-            )
+            val message by viewModel.messageToSend.collectAsState()
+            val isSendingEnabled by viewModel.isSendingEnabled.collectAsState()
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                TextField(
+                    value = message,
+                    onValueChange = {
+                        viewModel.updateMessage(it)
+                    },
+                    label = { Text("Enter Message") }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Switch(
+                    checked = isSendingEnabled,
+                    onCheckedChange = { viewModel.toggleSending(it) }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Sending Enabled: $isSendingEnabled")
+            }
         }
     }
 
@@ -118,5 +152,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
 }

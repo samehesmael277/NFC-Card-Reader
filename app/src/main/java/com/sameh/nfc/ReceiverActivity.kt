@@ -7,25 +7,25 @@ import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
 import com.sameh.nfc.ui.theme.NFCTheme
 
 class ReceiverActivity : ComponentActivity(), NfcAdapter.ReaderCallback {
@@ -33,9 +33,18 @@ class ReceiverActivity : ComponentActivity(), NfcAdapter.ReaderCallback {
     private var nfcAdapter: NfcAdapter? = null
     private val nfcData = mutableStateOf("")
 
+    private lateinit var viewModel: NfcViewModel
+    private var isReceivingEnabled = mutableStateOf(true)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        viewModel = ViewModelProvider(
+            this,
+            ViewModelProvider.AndroidViewModelFactory(application)
+        )[NfcViewModel::class.java]
+
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
 
         val intent = Intent(this, HostCardEmulatorService::class.java)
@@ -52,32 +61,27 @@ class ReceiverActivity : ComponentActivity(), NfcAdapter.ReaderCallback {
 
         setContent {
             NFCTheme {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
+                        .background(Color.White)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "NFC Reader Mode",
-                            style = MaterialTheme.typography.headlineMedium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            textAlign = TextAlign.Center
-                        )
-
-                        Text(
-                            text = nfcData.value,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    Text("NFC Reader Mode")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Switch(
+                        checked = isReceivingEnabled.value,
+                        onCheckedChange = {
+                            isReceivingEnabled.value = it
+                            viewModel.toggleReceiving(it)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Receiving Enabled: ${isReceivingEnabled.value}")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Received Data: ${nfcData.value}")
                 }
             }
         }
@@ -97,11 +101,13 @@ class ReceiverActivity : ComponentActivity(), NfcAdapter.ReaderCallback {
 
     override fun onResume() {
         super.onResume()
-        nfcAdapter?.enableReaderMode(
-            this, this,
-            NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
-            null
-        )
+        if (isReceivingEnabled.value) {
+            nfcAdapter?.enableReaderMode(
+                this, this,
+                NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+                null
+            )
+        }
     }
 
     override fun onPause() {
@@ -110,46 +116,33 @@ class ReceiverActivity : ComponentActivity(), NfcAdapter.ReaderCallback {
     }
 
     override fun onTagDiscovered(tag: Tag?) {
+        if (!isReceivingEnabled.value) return
+
         try {
             val isoDep = IsoDep.get(tag) ?: return
             isoDep.connect()
 
-            // إرسال أمر SELECT مع AID الصحيح
-            val selectApdu = "00A4040007A0000002471001" // AID طوله 7 بايت
+            val selectApdu = "00A4040007A0000002471001"
             val selectResponse = isoDep.transceive(Utils.hexStringToByteArray(selectApdu))
-            val selectHex = Utils.toHex(selectResponse)
-            Log.d("NFC", "SELECT Response: $selectHex")
 
-            if (selectHex != "9000") {
-                // إذا فشلت عملية SELECT
-                nfcData.value = "Error: Failed to select application. Response: $selectHex"
+            if (Utils.toHex(selectResponse) != "9000") {
+                nfcData.value = "Error: Failed to select application"
                 isoDep.close()
                 return
             }
 
-            // إرسال أمر قراءة البيانات
-            val readCommand = "00B0000000" // أمر القراءة
+            val readCommand = "00B0000000"
             val response = isoDep.transceive(Utils.hexStringToByteArray(readCommand))
             val responseHex = Utils.toHex(response)
-            Log.d("NFC", "Read Response: $responseHex")
 
-            // استخراج الرسالة من الاستجابة (بإزالة رمز الحالة 9000 أو التعامل مع الخطأ)
             if (responseHex.endsWith("9000")) {
                 val messageHex = responseHex.substring(0, responseHex.length - 4)
-                val message = Utils.hexToString(messageHex)
-                nfcData.value = "Message: $message"
-            } else {
-                nfcData.value = "Error: Invalid response format. Response: $responseHex"
+                nfcData.value = Utils.hexToString(messageHex)
             }
+
+            isoDep.close()
         } catch (e: Exception) {
-            Log.e("NFC", "Error in NFC communication", e)
-            nfcData.value = "Error: ${e.message}"
-        } finally {
-            try {
-                IsoDep.get(tag)?.close()
-            } catch (e: Exception) {
-                Log.e("NFC", "Error closing IsoDep", e)
-            }
+            nfcData.value = "Error reading NFC data"
         }
     }
 }

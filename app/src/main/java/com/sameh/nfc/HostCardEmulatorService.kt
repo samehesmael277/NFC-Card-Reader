@@ -14,9 +14,6 @@ class HostCardEmulatorService : HostApduService() {
         val SELECT_INS = "A4"
         val DEFAULT_CLA = "00"
         val MIN_APDU_LENGTH = 12
-
-        // رسالة لإرسالها عند الطلب
-        val MESSAGE_TO_SEND = "Hello NFC World!"
     }
 
     override fun onDeactivated(reason: Int) {
@@ -24,6 +21,10 @@ class HostCardEmulatorService : HostApduService() {
     }
 
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
+        if (NFCMessageHandler.isSendingEnabled().not()) return Utils.hexStringToByteArray(
+            STATUS_FAILED
+        )
+
         if (commandApdu == null) return Utils.hexStringToByteArray(STATUS_FAILED)
 
         val hexCommandApdu = Utils.toHex(commandApdu)
@@ -31,7 +32,8 @@ class HostCardEmulatorService : HostApduService() {
 
         // التعامل مع أمر SELECT
         if (hexCommandApdu.length >= 10 && hexCommandApdu.substring(0, 2) == DEFAULT_CLA &&
-            hexCommandApdu.substring(2, 4) == SELECT_INS) {
+            hexCommandApdu.substring(2, 4) == SELECT_INS
+        ) {
 
             if (hexCommandApdu.length < MIN_APDU_LENGTH) {
                 return Utils.hexStringToByteArray(STATUS_FAILED)
@@ -49,7 +51,8 @@ class HostCardEmulatorService : HostApduService() {
                 return Utils.hexStringToByteArray(STATUS_FAILED)
             }
 
-            val receivedAID = hexCommandApdu.substring(lengthIndex + 2, lengthIndex + 2 + (aidLength * 2))
+            val receivedAID =
+                hexCommandApdu.substring(lengthIndex + 2, lengthIndex + 2 + (aidLength * 2))
             Log.d(TAG, "Extracted AID: $receivedAID, Expected AID: $AID")
 
             return if (receivedAID == AID) {
@@ -64,7 +67,8 @@ class HostCardEmulatorService : HostApduService() {
         // التعامل مع أمر القراءة 00B0000000
         if (hexCommandApdu == "00B0000000") {
             Log.d(TAG, "Received READ command")
-            val messageInHex = Utils.stringToHex(MESSAGE_TO_SEND)
+            val ncfMessage = NFCMessageHandler.getNCFSharedMessage()
+            val messageInHex = Utils.stringToHex(ncfMessage)
             return Utils.hexStringToByteArray(messageInHex + STATUS_SUCCESS)
         }
 
